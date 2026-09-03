@@ -30,18 +30,18 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/genai"
 
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	icontext "google.golang.org/adk/internal/context"
-	"google.golang.org/adk/internal/httprr"
-	"google.golang.org/adk/internal/testutil"
-	"google.golang.org/adk/internal/toolinternal"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/model/gemini"
-	"google.golang.org/adk/session"
-	"google.golang.org/adk/tool"
-	"google.golang.org/adk/tool/mcptoolset"
-	"google.golang.org/adk/tool/toolconfirmation"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	icontext "google.golang.org/adk/v2/internal/context"
+	"google.golang.org/adk/v2/internal/httprr"
+	"google.golang.org/adk/v2/internal/testutil"
+	"google.golang.org/adk/v2/internal/toolinternal"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/model/gemini"
+	"google.golang.org/adk/v2/session"
+	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/mcptoolset"
+	"google.golang.org/adk/v2/tool/toolconfirmation"
 )
 
 type Input struct {
@@ -111,7 +111,8 @@ func TestMCPToolSet(t *testing.T) {
 
 	wantEvents := []*session.Event{
 		{
-			Author: "weather_time_agent",
+			Author:   "weather_time_agent",
+			NodeInfo: &session.NodeInfo{Path: "weather_time_agent"},
 			LLMResponse: model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{
@@ -128,7 +129,8 @@ func TestMCPToolSet(t *testing.T) {
 			},
 		},
 		{
-			Author: "weather_time_agent",
+			Author:   "weather_time_agent",
+			NodeInfo: &session.NodeInfo{Path: "weather_time_agent"},
 			LLMResponse: model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{
@@ -146,7 +148,8 @@ func TestMCPToolSet(t *testing.T) {
 			},
 		},
 		{
-			Author: "weather_time_agent",
+			Author:   "weather_time_agent",
+			NodeInfo: &session.NodeInfo{Path: "weather_time_agent"},
 			LLMResponse: model.LLMResponse{
 				Content: &genai.Content{
 					Parts: []*genai.Part{
@@ -791,5 +794,56 @@ func TestNewToolSet_RequireConfirmationProvider_Validation(t *testing.T) {
 				t.Error("expected valid toolset, got nil")
 			}
 		})
+	}
+}
+
+func TestMCPTool_EmptyTextResponse(t *testing.T) {
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test_server", Version: "v1.0.0"}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "empty_tool", Description: "returns empty response"}, func(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: ""}},
+		}, nil, nil
+	})
+	_, err := server.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ts, err := mcptoolset.New(mcptoolset.Config{
+		Transport: clientTransport,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create MCP tool set: %v", err)
+	}
+
+	tools, err := ts.Tools(icontext.NewReadonlyContext(
+		icontext.NewInvocationContext(
+			t.Context(),
+			icontext.InvocationContextParams{},
+		),
+	))
+	if err != nil {
+		t.Fatalf("Failed to get tools: %v", err)
+	}
+	if len(tools) != 1 {
+		t.Fatalf("Expected 1 tool, got %d", len(tools))
+	}
+
+	toolCtx := icontext.NewInvocationContext(t.Context(), icontext.InvocationContextParams{})
+	tc := agent.NewToolContext(toolCtx, "", nil, nil)
+
+	fnTool, ok := tools[0].(toolinternal.FunctionTool)
+	if !ok {
+		t.Fatalf("Expected tool to implement toolinternal.FunctionTool")
+	}
+
+	res, err := fnTool.Run(tc, map[string]any{})
+	if err != nil {
+		t.Fatalf("Expected Run to succeed on empty text response, got: %v", err)
+	}
+	if res["output"] != "" {
+		t.Fatalf("Expected output to be empty string, got: %v", res["output"])
 	}
 }

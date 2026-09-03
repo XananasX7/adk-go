@@ -22,8 +22,8 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"google.golang.org/adk/server/agentengine/internal/models"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/server/agentengine/internal/models"
+	"google.golang.org/adk/v2/session"
 )
 
 type getSessionHandler struct {
@@ -83,7 +83,7 @@ func (g *getSessionHandler) Handle(ctx context.Context, rw http.ResponseWriter, 
 
 	err := json.Unmarshal(payload, &req)
 	if err != nil {
-		return fmt.Errorf("json.Unmarshal() failed: %v", err)
+		return fmt.Errorf("json.Unmarshal() failed: %w", err)
 	}
 
 	// Bind the operation to the authenticated caller identity.
@@ -96,7 +96,7 @@ func (g *getSessionHandler) Handle(ctx context.Context, rw http.ResponseWriter, 
 	}
 	resp, err := g.sessionservice.Get(ctx, ssReq)
 	if err != nil {
-		return fmt.Errorf("c.sessionservice.Get() failed: %v", err)
+		return fmt.Errorf("c.sessionservice.Get() failed: %w", err)
 	}
 
 	sd := models.FromSession(resp.Session)
@@ -107,7 +107,7 @@ func (g *getSessionHandler) Handle(ctx context.Context, rw http.ResponseWriter, 
 
 	err = json.NewEncoder(rw).Encode(result)
 	if err != nil {
-		return fmt.Errorf("json.NewEncoder failed: %v", err)
+		return fmt.Errorf("json.NewEncoder failed: %w", err)
 	}
 	return nil
 }
